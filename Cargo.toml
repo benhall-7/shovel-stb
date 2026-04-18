@@ -1,0 +1,3 @@
+[workspace]
+members = ["shovel-stb", "shovel-stb-cli"]
+resolver = "3"

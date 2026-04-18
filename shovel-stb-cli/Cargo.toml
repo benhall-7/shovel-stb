@@ -1,0 +1,12 @@
+[package]
+name = "shovel-stb-cli"
+version = "0.2.0"
+edition = "2024"
+
+[[bin]]
+name = "stb"
+path = "src/main.rs"
+
+[dependencies]
+shovel-stb = { path = "../shovel-stb" }
+clap = { version = "4", features = ["derive"] }
