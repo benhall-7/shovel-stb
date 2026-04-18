@@ -1,45 +1,9 @@
 use std::io::{Seek, Write};
 
 use crate::Stb;
-use crate::groups::{build_groups, encode_group_table};
-use crate::hash::stb_hash;
-
-/// Non-deduplicating, 8-byte-aligned string pool.
-///
-/// Each call to `append` adds a new copy of the string.
-/// Empty strings are recorded as offset 0 (pointing to the version field).
-struct StringPool {
-    data: Vec<u8>,
-    offsets: Vec<u64>,
-    next_offset: u64,
-}
-
-impl StringPool {
-    fn new(base_offset: u64) -> Self {
-        Self {
-            data: Vec::new(),
-            offsets: Vec::new(),
-            next_offset: base_offset,
-        }
-    }
-
-    fn push_empty(&mut self) {
-        self.offsets.push(0);
-    }
-
-    fn append(&mut self, s: &str) {
-        self.offsets.push(self.next_offset);
-
-        self.data.extend_from_slice(s.as_bytes());
-        self.data.push(0);
-
-        let unpadded_len = s.len() + 1;
-        let padded_len = (unpadded_len + 7) & !7;
-        self.data
-            .resize(self.data.len() + padded_len - unpadded_len, 0);
-        self.next_offset += padded_len as u64;
-    }
-}
+use crate::stb::groups::{build_groups, encode_group_table};
+use crate::stb::hash::stb_hash;
+use crate::strings::StringPool;
 
 impl Stb {
     /// Serialize this table to the binary STB format.
@@ -71,11 +35,7 @@ impl Stb {
 
         let mut pool = StringPool::new(string_offsets_end);
         for &s in &all_strings {
-            if s.is_empty() {
-                pool.push_empty();
-            } else {
-                pool.append(s);
-            }
+            pool.push(s);
         }
         let string_pool_end = pool.next_offset;
 

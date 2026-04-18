@@ -1,12 +1,14 @@
-pub mod groups;
-pub mod hash;
+//! Shovel Knight spreadsheet and localization table formats.
 
-mod csv;
-mod read;
-mod write;
+pub mod stb;
+pub mod stl;
 
-pub use groups::{Group, GroupEntry};
-pub use hash::stb_hash;
+mod strings;
+
+pub use stb::groups;
+pub use stb::hash;
+pub use stb::hash::stb_hash;
+pub use stl::Stl;
 
 /// A parsed STB spreadsheet.
 #[derive(Debug, Clone)]
@@ -21,9 +23,9 @@ pub struct Stb {
     /// to the *header* row.
     pub cell_hashes: Vec<Vec<u32>>,
     /// Row-group index buckets.
-    pub row_groups: Vec<Group>,
+    pub row_groups: Vec<groups::Group>,
     /// Column-group index buckets.
-    pub col_groups: Vec<Group>,
+    pub col_groups: Vec<groups::Group>,
 }
 
 impl Stb {

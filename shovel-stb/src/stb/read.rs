@@ -3,7 +3,8 @@ use std::io::{Read, Seek, SeekFrom};
 use binrw::{BinRead, BinResult};
 
 use crate::Stb;
-use crate::groups::{Group, GroupEntry};
+use crate::stb::groups::{Group, GroupEntry};
+use crate::strings::read_null_string;
 
 #[derive(Debug, BinRead)]
 #[br(little)]
@@ -19,22 +20,6 @@ struct RawHeader {
     _pad2: u32,
     col_group_count: u32,
     col_groups_offset: u64,
-}
-
-fn read_null_string<R: Read>(reader: &mut R) -> BinResult<String> {
-    let mut buf = Vec::new();
-    let mut byte = [0u8; 1];
-    loop {
-        reader.read_exact(&mut byte)?;
-        if byte[0] == 0 {
-            break;
-        }
-        buf.push(byte[0]);
-    }
-    String::from_utf8(buf).map_err(|e| binrw::Error::Custom {
-        pos: 0,
-        err: Box::new(e),
-    })
 }
 
 fn read_groups<R: Read + Seek>(

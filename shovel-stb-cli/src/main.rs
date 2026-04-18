@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::process;
 
 use clap::{Parser, Subcommand};
-use shovel_stb::Stb;
+use shovel_stb::{Stb, Stl};
 
 #[derive(Parser)]
 #[command(
     name = "stb",
-    about = "Convert Shovel Knight .stb spreadsheets to/from CSV"
+    about = "Convert Shovel Knight .stb/.stm/.stl files to/from CSV"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -61,18 +61,28 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
             output,
             stdout,
             no_bom,
-        }) => stb_to_csv(&input, output.as_deref(), stdout, !no_bom),
-        Some(Command::ToStb { input, output }) => csv_to_stb(&input, output.as_deref()),
+        }) => {
+            let bom = !no_bom;
+            match input.extension().and_then(OsStr::to_str) {
+                Some("stl") => stl_to_csv(&input, output.as_deref(), stdout, bom),
+                _ => stb_to_csv(&input, output.as_deref(), stdout, bom),
+            }
+        }
+        Some(Command::ToStb { input, output }) => csv_to_binary(&input, output.as_deref()),
         None => {
             let input = cli.input.ok_or("no input file provided (try --help)")?;
 
             match input.extension().and_then(OsStr::to_str) {
                 Some("stb" | "stm") => stb_to_csv(&input, None, false, true),
-                Some("csv") => csv_to_stb(&input, None),
-                Some(ext) => {
-                    Err(format!("unknown extension .{ext} (expected .stb, .stm, or .csv)").into())
+                Some("stl") => stl_to_csv(&input, None, false, true),
+                Some("csv") => csv_to_binary(&input, None),
+                Some(ext) => Err(format!(
+                    "unknown extension .{ext} (expected .stb, .stm, .stl, or .csv)"
+                )
+                .into()),
+                None => {
+                    Err("input file has no extension (expected .stb, .stm, .stl, or .csv)".into())
                 }
-                None => Err("input file has no extension (expected .stb, .stm, or .csv)".into()),
             }
         }
     }
@@ -100,6 +110,71 @@ fn stb_to_csv(
         stb.save_csv(&out, bom)?;
         eprintln!("{} -> {}", input.display(), out.display());
     }
+
+    Ok(())
+}
+
+fn stl_to_csv(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+    to_stdout: bool,
+    bom: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let stl =
+        Stl::open(input).map_err(|e| format!("failed to parse {}: {e}", input.display()))?;
+
+    if to_stdout {
+        stl.write_csv(std::io::stdout().lock(), bom)?;
+    } else {
+        let out = match output {
+            Some(path) => path.to_owned(),
+            None => {
+                let mut name = input.as_os_str().to_owned();
+                name.push(".csv");
+                PathBuf::from(name)
+            }
+        };
+        stl.save_csv(&out, bom)?;
+        eprintln!("{} -> {}", input.display(), out.display());
+    }
+
+    Ok(())
+}
+
+/// Detect the target binary format from the compound extension and convert.
+fn csv_to_binary(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let stripped = input.with_extension("");
+    let bin_ext = stripped
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or("");
+
+    if bin_ext == "stl" {
+        csv_to_stl(input, output)
+    } else {
+        csv_to_stb(input, output)
+    }
+}
+
+fn csv_to_stl(
+    input: &std::path::Path,
+    output: Option<&std::path::Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let stl =
+        Stl::open_csv(input).map_err(|e| format!("failed to parse {}: {e}", input.display()))?;
+
+    let out = match output {
+        Some(path) => path.to_owned(),
+        None => input.with_extension("").to_owned(),
+    };
+
+    stl.save_stl(&out)
+        .map_err(|e| format!("failed to write {}: {e}", out.display()))?;
+
+    eprintln!("{} -> {}", input.display(), out.display());
 
     Ok(())
 }
