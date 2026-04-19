@@ -145,19 +145,13 @@ impl Stl {
     }
 
     /// Convenience: save CSV to a file path.
-    pub fn save_csv(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        bom: bool,
-    ) -> Result<(), csv::Error> {
+    pub fn save_csv(&self, path: impl AsRef<std::path::Path>, bom: bool) -> Result<(), csv::Error> {
         let file = std::fs::File::create(path.as_ref())?;
         self.write_csv(std::io::BufWriter::new(file), bom)
     }
 
     /// Convenience: load from a CSV file path.
-    pub fn open_csv(
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn open_csv(path: impl AsRef<std::path::Path>) -> Result<Self, Box<dyn std::error::Error>> {
         let file = std::fs::File::open(path.as_ref())?;
         Self::read_csv(std::io::BufReader::new(file))
     }

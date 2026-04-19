@@ -3,7 +3,8 @@ use std::io::{Read, Seek, SeekFrom};
 use binrw::{BinRead, BinResult};
 
 use crate::Stb;
-use crate::stb::groups::{Group, GroupEntry};
+use crate::stb::groups::{self, Group, GroupEntry};
+use crate::stb::hash::stb_hash;
 use crate::strings::read_null_string;
 
 #[derive(Debug, BinRead)]
@@ -84,22 +85,77 @@ impl Stb {
             rows.push(strings[start..start + cols].to_vec());
         }
 
+        for (i, (file_hash, s)) in hashes_flat.iter().zip(strings.iter()).enumerate() {
+            let expected = stb_hash(s);
+            if *file_hash != expected {
+                let pos = reader.stream_position().unwrap_or(0);
+                return Err(binrw::Error::AssertFail {
+                    pos,
+                    message: format!(
+                        "cell hash mismatch at flat index {i}: file has 0x{file_hash:08x}, expected 0x{expected:08x} from string data"
+                    ),
+                });
+            }
+        }
+
         let mut cell_hashes: Vec<Vec<u32>> = Vec::with_capacity(header.num_rows as usize);
         for r in 0..header.num_rows as usize {
             let start = r * cols;
             cell_hashes.push(hashes_flat[start..start + cols].to_vec());
         }
 
-        let row_groups = read_groups(reader, header.row_groups_offset, header.row_group_count)?;
-        let col_groups = read_groups(reader, header.col_groups_offset, header.col_group_count)?;
+        let row_groups_file =
+            read_groups(reader, header.row_groups_offset, header.row_group_count)?;
+        let col_groups_file =
+            read_groups(reader, header.col_groups_offset, header.col_group_count)?;
 
-        Ok(Self {
+        let num_rows_total = cell_hashes.len();
+        let expected_row_groups = groups::build_groups(
+            (0..num_rows_total as u32)
+                .map(|i| (i, cell_hashes[i as usize][0]))
+                .collect(),
+            num_rows_total,
+        );
+        let expected_col_groups = groups::build_groups(
+            (0..cols as u32)
+                .map(|i| (i, cell_hashes[0][i as usize]))
+                .collect(),
+            cols,
+        );
+
+        if row_groups_file != expected_row_groups {
+            let pos = reader.stream_position().unwrap_or(0);
+            return Err(binrw::Error::AssertFail {
+                pos,
+                message: "row group table does not match cell hashes (file may be corrupt)".into(),
+            });
+        }
+        if col_groups_file != expected_col_groups {
+            let pos = reader.stream_position().unwrap_or(0);
+            return Err(binrw::Error::AssertFail {
+                pos,
+                message: "column group table does not match cell hashes (file may be corrupt)"
+                    .into(),
+            });
+        }
+
+        Self::from_tables(
             columns,
             rows,
             cell_hashes,
-            row_groups,
-            col_groups,
-        })
+            row_groups_file,
+            col_groups_file,
+            crate::StbTablesValidation::default(),
+        )
+        .map_err(
+            |e| {
+                let pos = reader.stream_position().unwrap_or(0);
+                binrw::Error::AssertFail {
+                    pos,
+                    message: e.to_string(),
+                }
+            },
+        )
     }
 
     /// Convenience: open a file by path and parse it.

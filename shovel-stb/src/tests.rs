@@ -1,6 +1,8 @@
 use std::io::Cursor;
 
-use crate::{Stb, Stl, stb_hash};
+use crate::{
+    InnerCellEditor, Stb, StbError, StbTablesValidation, Stl, TablesMismatchKind, stb_hash,
+};
 
 fn fixture(name: &str) -> std::path::PathBuf {
     let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -16,18 +18,18 @@ fn parse_character_attributes() {
     let stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
 
     assert_eq!(stb.num_cols(), 17);
-    assert_eq!(stb.num_rows(), 20);
+    assert_eq!(stb.num_data_rows(), 20);
 
-    assert_eq!(stb.columns[0], "ID");
-    assert_eq!(stb.columns[1], "Name");
-    assert_eq!(stb.columns[3], "Health");
+    assert_eq!(stb.columns()[0], "ID");
+    assert_eq!(stb.columns()[1], "Name");
+    assert_eq!(stb.columns()[3], "Health");
 
     assert_eq!(stb.get(0, 1), Some("Shovel Knight"));
     assert_eq!(stb.get(0, 3), Some("8"));
     assert_eq!(stb.get(0, 4), Some("9.75"));
     assert_eq!(stb.get(1, 1), Some("Plague Knight"));
     assert_eq!(stb.get(2, 1), Some("Specter Knight"));
-    assert_eq!(stb.cell_hashes[0][0], 0x9911DB53);
+    assert_eq!(stb.cell_hash(0, 0), Some(0x9911DB53));
 }
 
 #[test]
@@ -35,9 +37,9 @@ fn parse_character_entry() {
     let stb = Stb::open(fixture("battle/characterEntry.stb")).unwrap();
 
     assert_eq!(stb.num_cols(), 44);
-    assert_eq!(stb.num_rows(), 31);
-    assert_eq!(stb.columns[0], "ID");
-    assert_eq!(stb.columns[1], "Speaker");
+    assert_eq!(stb.num_data_rows(), 31);
+    assert_eq!(stb.columns()[0], "ID");
+    assert_eq!(stb.columns()[1], "Speaker");
     assert_eq!(stb.get(0, 1), Some("Player"));
 }
 
@@ -46,9 +48,9 @@ fn parse_speakers() {
     let stb = Stb::open(fixture("dialogue/speakers.stb")).unwrap();
 
     assert_eq!(stb.num_cols(), 23);
-    assert_eq!(stb.num_rows(), 225);
-    assert_eq!(stb.columns[0], "ID");
-    assert_eq!(stb.columns[9], "English");
+    assert_eq!(stb.num_data_rows(), 225);
+    assert_eq!(stb.columns()[0], "ID");
+    assert_eq!(stb.columns()[9], "English");
 }
 
 #[test]
@@ -56,8 +58,8 @@ fn parse_passerby() {
     let stb = Stb::open(fixture("dialogue/passerby.stb")).unwrap();
 
     assert_eq!(stb.num_cols(), 8);
-    assert_eq!(stb.num_rows(), 150);
-    assert_eq!(stb.columns[0], "ID");
+    assert_eq!(stb.num_data_rows(), 150);
+    assert_eq!(stb.columns()[0], "ID");
     assert_eq!(stb.get(0, 0), Some("A_ID1"));
 }
 
@@ -66,9 +68,9 @@ fn parse_credits() {
     let stb = Stb::open(fixture("menus/credits.stb")).unwrap();
 
     assert_eq!(stb.num_cols(), 20);
-    assert_eq!(stb.num_rows(), 361);
-    assert_eq!(stb.columns[0], "Format");
-    assert_eq!(stb.columns[7], "English");
+    assert_eq!(stb.num_data_rows(), 361);
+    assert_eq!(stb.columns()[0], "Format");
+    assert_eq!(stb.columns()[7], "English");
 }
 
 // -- STM parsing --
@@ -78,10 +80,10 @@ fn parse_stm_dialogue() {
     let stb = Stb::open(fixture("loctext/dialogue.stm")).unwrap();
 
     assert_eq!(stb.num_cols(), 8);
-    assert_eq!(stb.columns[0], "");
-    assert_eq!(stb.columns[1], "ID");
-    assert_eq!(stb.columns[2], "Speaker");
-    assert_eq!(stb.columns[3], "Trigger");
+    assert_eq!(stb.columns()[0], "");
+    assert_eq!(stb.columns()[1], "ID");
+    assert_eq!(stb.columns()[2], "Speaker");
+    assert_eq!(stb.columns()[3], "Trigger");
 }
 
 #[test]
@@ -89,7 +91,7 @@ fn parse_stm_menus() {
     let stb = Stb::open(fixture("loctext/menus.stm")).unwrap();
 
     assert_eq!(stb.num_cols(), 1);
-    assert_eq!(stb.columns[0], "ID");
+    assert_eq!(stb.columns()[0], "ID");
     assert_eq!(stb.get(0, 0), Some("yes"));
 }
 
@@ -121,19 +123,19 @@ fn hash_known_values() {
 fn hash_matches_parsed_cells() {
     let stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
 
-    for (col, header) in stb.columns.iter().enumerate() {
+    for (col, header) in stb.columns().iter().enumerate() {
         assert_eq!(
-            stb.cell_hashes[0][col],
-            stb_hash(header),
+            stb.cell_hash(0, col),
+            Some(stb_hash(header)),
             "header hash mismatch for column {col} (\"{header}\")"
         );
     }
 
-    for (r, row) in stb.rows.iter().enumerate() {
+    for (r, row) in stb.rows().iter().enumerate() {
         for (c, val) in row.iter().enumerate() {
             assert_eq!(
-                stb.cell_hashes[r + 1][c],
-                stb_hash(val),
+                stb.cell_hash(r + 1, c),
+                Some(stb_hash(val)),
                 "hash mismatch at row {r} col {c} (\"{val}\")"
             );
         }
@@ -146,15 +148,84 @@ fn hash_matches_parsed_cells() {
 fn row_and_col_groups() {
     let stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
 
-    assert_eq!(stb.row_groups.len(), 7);
-    assert_eq!(stb.col_groups.len(), 5);
+    assert_eq!(stb.row_groups().len(), 7);
+    assert_eq!(stb.col_groups().len(), 5);
 
-    let has_id_entry = stb.col_groups.iter().any(|g| {
+    let has_id_entry = stb.col_groups().iter().any(|g| {
         g.entries
             .iter()
             .any(|e| e.index == 0 && e.hash == 0x9911DB53)
     });
     assert!(has_id_entry);
+}
+
+#[test]
+fn set_inner_cell_updates_hash_preserves_groups() {
+    let mut stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
+    let rg_before = stb.row_groups().to_vec();
+    let cg_before = stb.col_groups().to_vec();
+
+    stb.set_inner_cell(1, 3, "999".to_string()).unwrap();
+    assert_eq!(stb.get(0, 3), Some("999"));
+    assert_eq!(stb.cell_hash(1, 3), Some(stb_hash("999")));
+    assert_eq!(stb.row_groups(), rg_before.as_slice());
+    assert_eq!(stb.col_groups(), cg_before.as_slice());
+}
+
+#[test]
+fn from_tables_full_rejects_bad_hashes() {
+    let columns = vec!["H".to_string()];
+    let rows = vec![vec!["cell".to_string()]];
+    let ok = Stb::from_rows(columns.clone(), rows.clone()).unwrap();
+    let mut bad_hashes = vec![
+        vec![stb_hash("H")],
+        vec![stb_hash("cell")],
+    ];
+    bad_hashes[1][0] ^= 0xDEAD_BEEF;
+    let r = Stb::from_tables(
+        columns,
+        rows,
+        bad_hashes,
+        ok.row_groups().to_vec(),
+        ok.col_groups().to_vec(),
+        StbTablesValidation::Full,
+    );
+    assert!(matches!(
+        r,
+        Err(StbError::TablesMismatch(TablesMismatchKind::CellHashes))
+    ));
+}
+
+#[test]
+fn from_tables_dimensions_only_accepts_bad_hashes() {
+    let columns = vec!["H".to_string()];
+    let rows = vec![vec!["cell".to_string()]];
+    let ok = Stb::from_rows(columns.clone(), rows.clone()).unwrap();
+    let mut bad_hashes = vec![
+        vec![stb_hash("H")],
+        vec![stb_hash("cell")],
+    ];
+    let corrupt = bad_hashes[1][0] ^ 0xDEAD_BEEF;
+    bad_hashes[1][0] = corrupt;
+    let stb = Stb::from_tables(
+        columns,
+        rows,
+        bad_hashes,
+        ok.row_groups().to_vec(),
+        ok.col_groups().to_vec(),
+        StbTablesValidation::DimensionsOnly,
+    )
+    .unwrap();
+    assert_eq!(stb.cell_hash(1, 0), Some(corrupt));
+}
+
+#[test]
+fn inner_cell_editor_round_trip() {
+    let stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
+    let mut ed = InnerCellEditor::new(stb);
+    ed.set_inner_cell(2, 2, "edited".to_string()).unwrap();
+    let stb = ed.finish();
+    assert_eq!(stb.get(1, 2), Some("edited"));
 }
 
 // -- CSV round-trip --
@@ -170,16 +241,14 @@ fn csv_round_trip() {
 
     let restored = Stb::read_csv(Cursor::new(&csv_buf)).unwrap();
 
-    assert_eq!(original.columns, restored.columns);
-    assert_eq!(original.rows, restored.rows);
-    assert_eq!(original.cell_hashes, restored.cell_hashes);
+    assert_eq!(original, restored);
 
     let mut no_bom_buf = Vec::new();
     original.write_csv(&mut no_bom_buf, false).unwrap();
     assert_ne!(&no_bom_buf[..3], b"\xEF\xBB\xBF", "BOM should be absent");
 
     let restored2 = Stb::read_csv(Cursor::new(&no_bom_buf)).unwrap();
-    assert_eq!(original.columns, restored2.columns);
+    assert_eq!(original, restored2);
 }
 
 // -- Binary round-trip --
@@ -255,9 +324,7 @@ fn full_pipeline_stb_csv_stb() {
 
     let reparsed = Stb::read(&mut Cursor::new(stb_buf.into_inner())).unwrap();
 
-    assert_eq!(original.columns, reparsed.columns);
-    assert_eq!(original.rows, reparsed.rows);
-    assert_eq!(original.cell_hashes, reparsed.cell_hashes);
+    assert_eq!(original, reparsed);
 }
 
 // -- STL parsing --
@@ -296,7 +363,8 @@ fn stl_binary_round_trip(path: &std::path::Path) {
     let written_bytes = written.into_inner();
 
     assert_eq!(
-        original_bytes, written_bytes,
+        original_bytes,
+        written_bytes,
         "STL byte mismatch for {}",
         path.display()
     );
@@ -321,10 +389,7 @@ fn stl_csv_rejects_multi_column() {
     let result = Stl::read_csv(Cursor::new(csv_data));
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
-    assert!(
-        err.contains("exactly 1 column"),
-        "unexpected error: {err}"
-    );
+    assert!(err.contains("exactly 1 column"), "unexpected error: {err}");
 }
 
 // -- STL full pipeline --

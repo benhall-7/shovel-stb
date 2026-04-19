@@ -1,7 +1,7 @@
 use binrw::BinRead;
 
 /// A single entry inside a row/column group: `(index, hash)`.
-#[derive(Debug, Clone, BinRead)]
+#[derive(Debug, Clone, PartialEq, Eq, BinRead)]
 #[br(little)]
 pub struct GroupEntry {
     pub index: u32,
@@ -9,7 +9,7 @@ pub struct GroupEntry {
 }
 
 /// One bucket in a row-group or column-group index.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Group {
     pub entries: Vec<GroupEntry>,
 }

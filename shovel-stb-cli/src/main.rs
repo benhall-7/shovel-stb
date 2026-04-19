@@ -120,8 +120,7 @@ fn stl_to_csv(
     to_stdout: bool,
     bom: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let stl =
-        Stl::open(input).map_err(|e| format!("failed to parse {}: {e}", input.display()))?;
+    let stl = Stl::open(input).map_err(|e| format!("failed to parse {}: {e}", input.display()))?;
 
     if to_stdout {
         stl.write_csv(std::io::stdout().lock(), bom)?;
@@ -147,10 +146,7 @@ fn csv_to_binary(
     output: Option<&std::path::Path>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let stripped = input.with_extension("");
-    let bin_ext = stripped
-        .extension()
-        .and_then(OsStr::to_str)
-        .unwrap_or("");
+    let bin_ext = stripped.extension().and_then(OsStr::to_str).unwrap_or("");
 
     if bin_ext == "stl" {
         csv_to_stl(input, output)
