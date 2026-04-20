@@ -14,12 +14,24 @@ pub struct Group {
     pub entries: Vec<GroupEntry>,
 }
 
+/// Number of hash buckets for an axis length (row count or column count).
+/// Matches [`build_groups`]: `(axis_len / 3).max(1)`.
+pub fn group_bucket_count(axis_len: usize) -> usize {
+    (axis_len / 3).max(1)
+}
+
+/// Bucket index for a key hash on an axis of length `axis_len` (same rule as on-disk STB group tables).
+pub fn bucket_index_for_hash(hash: u32, axis_len: usize) -> usize {
+    let n = group_bucket_count(axis_len);
+    (hash as usize) % n
+}
+
 /// Build group buckets from (index, hash) pairs.
 ///
 /// Bucket count is `count / 3` (integer division, minimum 1).
 /// Assignment is `hash % bucket_count`.
 pub(crate) fn build_groups(entries: Vec<(u32, u32)>, count: usize) -> Vec<Group> {
-    let bucket_count = (count / 3).max(1);
+    let bucket_count = group_bucket_count(count);
     let mut buckets: Vec<Vec<GroupEntry>> = vec![Vec::new(); bucket_count];
 
     for (index, hash) in entries {

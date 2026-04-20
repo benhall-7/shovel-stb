@@ -31,7 +31,8 @@ pub enum StbError {
     },
     Csv(csv::Error),
     Io(std::io::Error),
-    /// [`crate::Stb::set_inner_cell`] only allows `row >= 1` and `col >= 1` (not the header row or first column).
+    /// [`crate::Stb::set_inner_cell`] only allows table `row >= 1` and `col >= 1`
+    /// (not row `0` or column `0`).
     NotInnerCell {
         row: usize,
         col: usize,
@@ -41,10 +42,26 @@ pub enum StbError {
         row: usize,
         col: usize,
     },
+    /// [`crate::Stb::set_row_key`] requires a table row index ≥ 1 (not the header row `0`).
+    RowKeyRequiresDataRow {
+        row: usize,
+    },
     /// Loaded tables do not match cell strings (internal invariant).
     InternalInvariant(&'static str),
     /// Parsed cell hashes or group buckets disagree with strings (see [`StbTablesValidation::Full`]).
     TablesMismatch(TablesMismatchKind),
+    /// [`crate::Stb::replace_line`] could not apply the requested slice (wrong length, invalid line for mode).
+    LineReplaceInvalid(&'static str),
+    /// Wrong number of cells passed to [`crate::Stb::replace_line`] or [`crate::StbLine::set_line`].
+    LineReplaceBadLen { expected: usize, found: usize },
+    /// Index along a row/column line is out of range for [`crate::StbLine`].
+    LineIndexOutOfBounds { len: usize, index: usize },
+    /// No column whose header matches this string ([`crate::StbLine::get_by_cross_axis_key`] on a row line).
+    ColumnHeaderNotFound(String),
+    /// No table row whose first-column key matches this string ([`crate::StbLine::get_by_cross_axis_key`] on a column line).
+    RowKeyNotFound(String),
+    /// Key resolves only to table index `0` on the cross axis, but inner line mode omits that index.
+    LineCrossAxisKeyOutsideLine(String),
 }
 
 impl fmt::Display for StbError {
@@ -67,7 +84,30 @@ impl fmt::Display for StbError {
             StbError::CellOutOfBounds { row, col } => {
                 write!(f, "cell index out of bounds (row={row}, col={col})")
             }
+            StbError::RowKeyRequiresDataRow { row } => write!(
+                f,
+                "set_row_key requires table row >= 1 (data row), got {row}"
+            ),
             StbError::InternalInvariant(msg) => write!(f, "{msg}"),
+            StbError::LineReplaceInvalid(msg) => write!(f, "{msg}"),
+            StbError::LineReplaceBadLen { expected, found } => write!(
+                f,
+                "line edit expected {expected} cell(s), got {found}"
+            ),
+            StbError::LineIndexOutOfBounds { len, index } => write!(
+                f,
+                "line index {index} out of bounds (len {len})"
+            ),
+            StbError::ColumnHeaderNotFound(key) => {
+                write!(f, "no column with header `{key}`")
+            }
+            StbError::RowKeyNotFound(key) => {
+                write!(f, "no data/header row with first-column key `{key}`")
+            }
+            StbError::LineCrossAxisKeyOutsideLine(key) => write!(
+                f,
+                "cross-axis key `{key}` matches only index 0 on this axis, which is not part of an inner line"
+            ),
             StbError::TablesMismatch(kind) => match kind {
                 TablesMismatchKind::CellHashes => {
                     write!(f, "cell_hashes do not match strings (recomputed hashes differ)")
