@@ -1,6 +1,7 @@
 use std::io::Read;
+use std::io::Seek;
 
-use binrw::BinResult;
+use binrw::{BinRead, BinResult, Endian};
 
 /// Non-deduplicating, 8-byte-aligned string pool.
 ///
@@ -63,4 +64,23 @@ pub(crate) fn read_null_string<R: Read>(reader: &mut R) -> BinResult<String> {
         pos: 0,
         err: Box::new(e),
     })
+}
+
+/// UTF-8 null-terminated string, using the same rules as [`read_null_string`].
+///
+/// Distinct from [`binrw::NullString`] (byte buffer + lossy display); this wraps a
+/// validated [`String`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Utf8NullString(pub String);
+
+impl BinRead for Utf8NullString {
+    type Args<'a> = ();
+
+    fn read_options<R: Read + Seek>(
+        reader: &mut R,
+        _endian: Endian,
+        (): Self::Args<'_>,
+    ) -> BinResult<Self> {
+        read_null_string(reader).map(Utf8NullString)
+    }
 }

@@ -3,49 +3,28 @@ use std::io::{Read, Seek, SeekFrom};
 use binrw::{BinRead, BinResult};
 
 use crate::Stb;
-use crate::stb::groups::{self, Group, GroupEntry};
+use crate::stb::groups::{self, Group};
 use crate::stb::hash::stb_hash;
-use crate::strings::read_null_string;
-
-#[derive(Debug, BinRead)]
-#[br(little)]
-struct RawHeader {
-    _version: u64,
-    num_rows: u32,
-    num_cols: u32,
-    cells_offset: u64,
-    string_offsets_offset: u64,
-    _pad1: u32,
-    row_group_count: u32,
-    row_groups_offset: u64,
-    _pad2: u32,
-    col_group_count: u32,
-    col_groups_offset: u64,
-}
+use crate::stb::io::layout::{
+    RawCellHashBlock, RawDiskGroup, RawGroupOffsetTable, RawHeader, RawStringOffsetBlock,
+};
+use crate::strings::Utf8NullString;
 
 fn read_groups<R: Read + Seek>(
     reader: &mut R,
     table_offset: u64,
     count: u32,
 ) -> BinResult<Vec<Group>> {
-    let count = count as usize;
+    let group_count = count as usize;
 
     reader.seek(SeekFrom::Start(table_offset))?;
-    let mut group_offsets = Vec::with_capacity(count);
-    for _ in 0..count {
-        group_offsets.push(u64::read_le(reader)?);
-    }
+    let RawGroupOffsetTable { offsets: group_offsets } =
+        RawGroupOffsetTable::read_le_args(reader, (group_count,))?;
 
-    let mut groups = Vec::with_capacity(count);
+    let mut groups = Vec::with_capacity(group_count);
     for &off in &group_offsets {
         reader.seek(SeekFrom::Start(off))?;
-        let entry_count = u64::read_le(reader)? as usize;
-        let _entry_size = u64::read_le(reader)?;
-
-        let mut entries = Vec::with_capacity(entry_count);
-        for _ in 0..entry_count {
-            entries.push(GroupEntry::read_le(reader)?);
-        }
+        let RawDiskGroup { entries, .. } = RawDiskGroup::read_le(reader)?;
         groups.push(Group { entries });
     }
 
@@ -60,21 +39,19 @@ impl Stb {
         let cols = header.num_cols as usize;
 
         reader.seek(SeekFrom::Start(header.cells_offset))?;
-        let mut hashes_flat: Vec<u32> = Vec::with_capacity(total_cells);
-        for _ in 0..total_cells {
-            hashes_flat.push(u32::read_le(reader)?);
-        }
+        let RawCellHashBlock { hashes: hashes_flat } =
+            RawCellHashBlock::read_le_args(reader, (total_cells,))?;
 
         reader.seek(SeekFrom::Start(header.string_offsets_offset))?;
-        let mut string_offsets: Vec<u64> = Vec::with_capacity(total_cells);
-        for _ in 0..total_cells {
-            string_offsets.push(u64::read_le(reader)?);
-        }
+        let RawStringOffsetBlock {
+            offsets: string_offsets,
+        } = RawStringOffsetBlock::read_le_args(reader, (total_cells,))?;
 
         let mut strings: Vec<String> = Vec::with_capacity(total_cells);
         for &off in &string_offsets {
             reader.seek(SeekFrom::Start(off))?;
-            strings.push(read_null_string(reader)?);
+            let Utf8NullString(s) = Utf8NullString::read_le(reader)?;
+            strings.push(s);
         }
 
         let columns: Vec<String> = strings[..cols].to_vec();

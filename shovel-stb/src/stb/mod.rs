@@ -12,5 +12,4 @@ pub mod stb_line;
 pub mod table_line;
 
 mod csv;
-mod read;
-mod write;
+pub(crate) mod io;

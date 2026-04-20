@@ -59,7 +59,7 @@ impl Stb {
         })
     }
 
-    /// Used by [`crate::stb::read`](stb::read) after file contents are verified.
+    /// Used by the STB binary reader ([`crate::stb::io`]) after file contents are verified.
     ///
     /// `validation` controls whether hashes and group buckets are checked
     /// against values derived from cell strings ([`StbTablesValidation::Full`]),

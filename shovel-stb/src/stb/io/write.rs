@@ -1,9 +1,19 @@
 use std::io::{Seek, Write};
 
+use binrw::BinWrite;
+
 use crate::Stb;
 use crate::stb::groups::{build_groups, encode_group_table};
 use crate::stb::hash::stb_hash;
+use crate::stb::io::layout::RawHeader;
 use crate::strings::StringPool;
+
+fn binrw_to_io(e: binrw::Error) -> std::io::Error {
+    match e {
+        binrw::Error::Io(e) => e,
+        e => std::io::Error::new(std::io::ErrorKind::InvalidData, e),
+    }
+}
 
 impl Stb {
     /// Serialize this table to the binary STB format.
@@ -60,18 +70,21 @@ impl Stb {
         let col_groups_offset = row_groups_offset + row_groups_bytes.len() as u64;
         let col_groups_bytes = encode_group_table(&col_groups, col_groups_offset);
 
-        // Header
-        writer.write_all(&0u64.to_le_bytes())?;
-        writer.write_all(&num_rows.to_le_bytes())?;
-        writer.write_all(&num_cols.to_le_bytes())?;
-        writer.write_all(&cells_offset.to_le_bytes())?;
-        writer.write_all(&string_offsets_offset.to_le_bytes())?;
-        writer.write_all(&0u32.to_le_bytes())?;
-        writer.write_all(&row_group_count.to_le_bytes())?;
-        writer.write_all(&row_groups_offset.to_le_bytes())?;
-        writer.write_all(&0u32.to_le_bytes())?;
-        writer.write_all(&col_group_count.to_le_bytes())?;
-        writer.write_all(&col_groups_offset.to_le_bytes())?;
+        RawHeader {
+            _version: 0,
+            num_rows,
+            num_cols,
+            cells_offset,
+            string_offsets_offset,
+            _pad1: 0,
+            row_group_count,
+            row_groups_offset,
+            _pad2: 0,
+            col_group_count,
+            col_groups_offset,
+        }
+        .write_le(writer)
+        .map_err(binrw_to_io)?;
 
         // Cell hashes
         debug_assert_eq!(writer.stream_position()?, cells_offset);
