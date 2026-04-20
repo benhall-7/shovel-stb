@@ -10,7 +10,7 @@ pub use stb::table_line::{LineReplaceMode, TableLine};
 pub use stb::groups;
 pub use stb::hash;
 pub use stb::hash::stb_hash;
-pub use stb::inner_cell_editor::InnerCellEditor;
+pub use stb::stb_inner_cells::StbInnerCells;
 pub use stb::stb_line::StbLine;
 pub use stl::Stl;
 
@@ -30,8 +30,9 @@ use stb::groups::{bucket_index_for_hash, Group};
 /// Key-based scans: [`Self::row_for_column`], [`Self::column_for_row`], [`Self::row_for_named_column`]
 /// (header row and column `0` use the on-disk row/column group buckets; see [`Self::col_group_bucket_for_key`],
 /// [`Self::row_group_bucket_for_key`]).
-/// Line editing: [`Self::line_mut`] / [`StbLine`] and [`Self::replace_line`] with [`LineReplaceMode::Inner`]
-/// (no index `0` on that line) vs [`LineReplaceMode::Full`] (includes row/column keys).
+/// Scoped sessions: [`StbInnerCells`] (owned [`Stb`], inner cells only; cheap [`StbInnerCells::finish`])
+/// vs [`Self::line_mut`] / [`StbLine`] (borrowed [`Stb`], one row/column; [`StbLine::finish`] refreshes that line).
+/// Line modes: [`LineReplaceMode::Inner`] (no index `0` on that line) vs [`LineReplaceMode::Full`] (includes keys).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stb {
     columns: Vec<String>,

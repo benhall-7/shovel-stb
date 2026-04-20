@@ -1,6 +1,10 @@
 use crate::{LineReplaceMode, Stb, StbError, TableLine};
 
-/// Mutable borrow of one **row** or **column** for in-place edits, finished with [`Self::finish`].
+/// Scoped edit session: one **row** or **column** of the table, then [`Self::finish`] to apply
+/// pending cell hashes and (in [`LineReplaceMode::Full`]) group-table rebuilds for that line.
+///
+/// Holds `&mut [`Stb`]` (unlike [`crate::StbInnerCells`], which owns the [`Stb`]). Use
+/// [`Self::stb`] to read the rest of the sheet while the borrow is active.
 ///
 /// Indices along the line are **symmetric**:
 /// - [`TableLine::Row`]`(r)`: index `i` is column `i` ([`LineReplaceMode::Full`]) or `i + 1`
@@ -29,6 +33,11 @@ impl<'a> StbLine<'a> {
     ) -> Result<Self, StbError> {
         stb.validate_line_access(line, mode)?;
         Ok(Self { stb, line, mode })
+    }
+
+    /// Read the underlying table while this line is borrowed (same idea as [`crate::StbInnerCells::stb`]).
+    pub fn stb(&self) -> &Stb {
+        &*self.stb
     }
 
     /// Number of cells along this line (same rules as [`Stb::replace_line`] lengths).
@@ -60,7 +69,9 @@ impl<'a> StbLine<'a> {
         self.stb.write_line_strings(self.line, self.mode, cells)
     }
 
-    /// Refresh cell hashes for this line and, in [`LineReplaceMode::Full`], rebuild row/column group tables.
+    /// Apply hashes (and in [`LineReplaceMode::Full`], group rebuilds) for this line. Unlike
+    /// [`crate::StbInnerCells::finish`], this does real work; call it after [`Self::get_mut`],
+    /// [`Self::set_line`], or [`Self::get_mut_by_cross_axis_key`].
     pub fn finish(self) {
         self.stb.finish_line_edit(self.line, self.mode);
     }

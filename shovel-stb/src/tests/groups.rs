@@ -1,5 +1,5 @@
 use crate::{
-    groups, InnerCellEditor, Stb, StbError, StbTablesValidation, TablesMismatchKind, stb_hash,
+    groups, Stb, StbError, StbInnerCells, StbTablesValidation, TablesMismatchKind, stb_hash,
 };
 
 use super::common::fixture;
@@ -180,9 +180,9 @@ fn set_row_key_rejects_header_row() {
 }
 
 #[test]
-fn inner_cell_editor_round_trip() {
+fn stb_inner_cells_round_trip() {
     let stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
-    let mut ed = InnerCellEditor::new(stb);
+    let mut ed = StbInnerCells::new(stb);
     ed.set_inner_cell(2, 2, "edited".to_string()).unwrap();
     let stb = ed.finish();
     assert_eq!(stb.cell(2, 2), Some("edited"));

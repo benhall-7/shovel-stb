@@ -7,7 +7,7 @@
 pub mod error;
 pub mod groups;
 pub mod hash;
-pub mod inner_cell_editor;
+pub mod stb_inner_cells;
 pub mod stb_line;
 pub mod table_line;
 
