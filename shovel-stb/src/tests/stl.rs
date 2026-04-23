@@ -64,6 +64,42 @@ fn stl_csv_rejects_multi_column() {
 }
 
 #[test]
+fn stl_csv_read_preserves_blank_rows() {
+    let csv = b"Text\nA\n\nB\n";
+    let stl = crate::Stl::read_csv(Cursor::new(csv.as_slice())).unwrap();
+    assert_eq!(
+        stl.entries,
+        vec!["A".to_string(), String::new(), "B".to_string()]
+    );
+}
+
+#[test]
+fn stl_csv_read_excel_style() {
+    let csv: &[u8] = b"\xEF\xBB\xBFText\r\nA\r\n\r\n\"line1\nline2 \"\"x\"\"\"\r\nB\r\n";
+    let stl = crate::Stl::read_csv(Cursor::new(csv)).unwrap();
+    assert_eq!(
+        stl.entries,
+        vec![
+            "A".to_string(),
+            String::new(),
+            "line1\nline2 \"x\"".to_string(),
+            "B".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn stl_csv_read_rejects_multi_column_data_row() {
+    let csv = b"Text\nA\nfoo,bar\nB\n";
+    let err = crate::Stl::read_csv(Cursor::new(csv.as_slice())).unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("row 3") && msg.contains("2 columns"),
+        "unexpected error: {msg}"
+    );
+}
+
+#[test]
 fn full_pipeline_stl_csv_stl() {
     let original = Stl::open(fixture("loctext/menus_eng.stl")).unwrap();
 

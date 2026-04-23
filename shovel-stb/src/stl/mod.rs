@@ -1,6 +1,7 @@
 use std::io::{Read, Seek, SeekFrom, Write};
 
 use binrw::{BinRead, BinResult};
+use lazycsv::{Csv, CsvIterItem};
 
 use crate::strings::{StringPool, read_null_string};
 
@@ -122,23 +123,37 @@ impl Stl {
 
     /// Read a string table from a single-column CSV.
     ///
-    /// Returns an error if the CSV has more than one column.
-    pub fn read_csv<R: Read>(reader: R) -> Result<Self, Box<dyn std::error::Error>> {
-        let mut rdr = csv::Reader::from_reader(reader);
-        let headers = rdr.headers()?;
+    /// Returns an error if any data row has more than one column. Empty rows are preserved
+    pub fn read_csv<R: Read>(mut reader: R) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes)?;
+        let input = strip_utf8_bom(&bytes);
 
-        if headers.len() != 1 {
+        let mut records = parse_csv_records(input)?;
+        if records.is_empty() {
+            return Err("STL CSV is empty (missing header row)".into());
+        }
+
+        let header = records.remove(0);
+        if header.len() != 1 {
             return Err(format!(
-                "STL CSV must have exactly 1 column, found {}",
-                headers.len()
+                "STL CSV must have exactly 1 column, found {} in header row",
+                header.len()
             )
             .into());
         }
 
-        let mut entries = Vec::new();
-        for result in rdr.records() {
-            let record = result?;
-            entries.push(record[0].to_owned());
+        let mut entries = Vec::with_capacity(records.len());
+        for (i, record) in records.into_iter().enumerate() {
+            if record.len() != 1 {
+                return Err(format!(
+                    "STL CSV row {} has {} columns, expected 1",
+                    i + 2,
+                    record.len()
+                )
+                .into());
+            }
+            entries.push(record.into_iter().next().unwrap());
         }
 
         Ok(Self::from_entries(entries))
@@ -155,6 +170,31 @@ impl Stl {
         let file = std::fs::File::open(path.as_ref())?;
         Self::read_csv(std::io::BufReader::new(file))
     }
+}
+
+/// Strip a leading UTF-8 BOM (`EF BB BF`) if present
+pub(crate) fn strip_utf8_bom(bytes: &[u8]) -> &[u8] {
+    bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)
+}
+
+/// Parse bytes as CSV records.
+///
+/// Empty lines produce records with a single empty field, so the row count of the output matches
+/// the row count a spreadsheet user would see in their editor.
+pub(crate) fn parse_csv_records(bytes: &[u8]) -> Result<Vec<Vec<String>>, std::str::Utf8Error> {
+    let mut records: Vec<Vec<String>> = Vec::new();
+    let mut current: Vec<String> = Vec::new();
+    for item in Csv::new(bytes) {
+        match item {
+            CsvIterItem::Cell(cell) => current.push(cell.try_as_str()?.into_owned()),
+            CsvIterItem::LineEnd => records.push(std::mem::take(&mut current)),
+        }
+    }
+    // Handle trailing record without a final line terminator.
+    if !current.is_empty() {
+        records.push(current);
+    }
+    Ok(records)
 }
 
 impl std::fmt::Display for Stl {

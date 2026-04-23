@@ -1,4 +1,4 @@
-use crate::{stb_hash, Stb};
+use crate::{Stb, stb_hash};
 
 use super::common::fixture;
 

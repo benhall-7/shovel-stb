@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 
 use crate::Stb;
 use crate::StbError;
+use crate::stl::{parse_csv_records, strip_utf8_bom};
 
 impl Stb {
     /// Write the table as CSV to any writer. When `bom` is true a UTF-8 BOM is prepended,
@@ -20,17 +21,22 @@ impl Stb {
     }
 
     /// Read a table from CSV. Fails if a row has a different width than the header row.
-    pub fn read_csv<R: Read>(reader: R) -> Result<Self, StbError> {
-        let mut rdr = csv::Reader::from_reader(reader);
-        let columns: Vec<String> = rdr.headers()?.iter().map(|s| s.to_owned()).collect();
+    pub fn read_csv<R: Read>(mut reader: R) -> Result<Self, StbError> {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes)?;
+        let input = strip_utf8_bom(&bytes);
 
-        let mut rows = Vec::new();
-        for result in rdr.records() {
-            let record = result?;
-            rows.push(record.iter().map(|s| s.to_owned()).collect());
+        let mut records = parse_csv_records(input)
+            .map_err(|e| StbError::CsvRead(format!("invalid UTF-8 in CSV cell: {e}")))?;
+
+        if records.is_empty() {
+            return Err(StbError::CsvRead(
+                "STB CSV is empty (missing header row)".into(),
+            ));
         }
 
-        Stb::from_rows(columns, rows)
+        let columns = records.remove(0);
+        Stb::from_rows(columns, records)
     }
 
     /// Convenience: save CSV to a file path (with BOM by default).

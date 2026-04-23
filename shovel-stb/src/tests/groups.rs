@@ -1,5 +1,5 @@
 use crate::{
-    groups, Stb, StbError, StbInnerCells, StbTablesValidation, TablesMismatchKind, stb_hash,
+    Stb, StbError, StbInnerCells, StbTablesValidation, TablesMismatchKind, groups, stb_hash,
 };
 
 use super::common::fixture;
@@ -10,8 +10,14 @@ fn row_and_col_groups() {
 
     assert_eq!(stb.row_groups().len(), 7);
     assert_eq!(stb.col_groups().len(), 5);
-    assert_eq!(stb.row_groups().len(), groups::group_bucket_count(stb.num_rows()));
-    assert_eq!(stb.col_groups().len(), groups::group_bucket_count(stb.num_cols()));
+    assert_eq!(
+        stb.row_groups().len(),
+        groups::group_bucket_count(stb.num_rows())
+    );
+    assert_eq!(
+        stb.col_groups().len(),
+        groups::group_bucket_count(stb.num_cols())
+    );
 
     let has_id_entry = stb.col_groups().iter().any(|g| {
         g.entries
@@ -32,17 +38,24 @@ fn group_bucket_lookup_agrees_with_linear_scan() {
         assert_eq!(stb.column_index(header), Some(c));
         let h = stb_hash(header);
         assert!(
-            stb.col_group_bucket_for_key(header).entries.iter().any(|e| {
-                e.index as usize == c && e.hash == h && stb.cell(0, e.index as usize) == Some(header)
-            }),
+            stb.col_group_bucket_for_key(header)
+                .entries
+                .iter()
+                .any(|e| {
+                    e.index as usize == c
+                        && e.hash == h
+                        && stb.cell(0, e.index as usize) == Some(header)
+                }),
             "col {c} header bucket"
         );
         assert_eq!(
             groups::bucket_index_for_hash(h, nc),
-            stb
-                .col_groups()
+            stb.col_groups()
                 .iter()
-                .position(|g| g.entries.iter().any(|e| e.index as usize == c && e.hash == h))
+                .position(|g| g
+                    .entries
+                    .iter()
+                    .any(|e| e.index as usize == c && e.hash == h))
                 .expect("column entry in some bucket")
         );
     }
@@ -62,10 +75,12 @@ fn group_bucket_lookup_agrees_with_linear_scan() {
         );
         assert_eq!(
             groups::bucket_index_for_hash(h, nr),
-            stb
-                .row_groups()
+            stb.row_groups()
                 .iter()
-                .position(|g| g.entries.iter().any(|e| e.index as usize == r && e.hash == h))
+                .position(|g| g
+                    .entries
+                    .iter()
+                    .any(|e| e.index as usize == r && e.hash == h))
                 .expect("row entry in some bucket")
         );
     }
@@ -89,10 +104,7 @@ fn from_tables_full_rejects_bad_hashes() {
     let columns = vec!["H".to_string()];
     let rows = vec![vec!["cell".to_string()]];
     let ok = Stb::from_rows(columns.clone(), rows.clone()).unwrap();
-    let mut bad_hashes = vec![
-        vec![stb_hash("H")],
-        vec![stb_hash("cell")],
-    ];
+    let mut bad_hashes = vec![vec![stb_hash("H")], vec![stb_hash("cell")]];
     bad_hashes[1][0] ^= 0xDEAD_BEEF;
     let r = Stb::from_tables(
         columns,
@@ -113,10 +125,7 @@ fn from_tables_dimensions_only_accepts_bad_hashes() {
     let columns = vec!["H".to_string()];
     let rows = vec![vec!["cell".to_string()]];
     let ok = Stb::from_rows(columns.clone(), rows.clone()).unwrap();
-    let mut bad_hashes = vec![
-        vec![stb_hash("H")],
-        vec![stb_hash("cell")],
-    ];
+    let mut bad_hashes = vec![vec![stb_hash("H")], vec![stb_hash("cell")]];
     let corrupt = bad_hashes[1][0] ^ 0xDEAD_BEEF;
     bad_hashes[1][0] = corrupt;
     let stb = Stb::from_tables(
@@ -173,10 +182,7 @@ fn set_column_key_col0_rebuilds_row_and_col_groups() {
 fn set_row_key_rejects_header_row() {
     let mut stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
     let r = stb.set_row_key(0, "nope".to_string());
-    assert!(matches!(
-        r,
-        Err(StbError::RowKeyRequiresDataRow { row: 0 })
-    ));
+    assert!(matches!(r, Err(StbError::RowKeyRequiresDataRow { row: 0 })));
 }
 
 #[test]

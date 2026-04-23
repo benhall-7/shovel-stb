@@ -80,7 +80,8 @@ impl<'a> StbLine<'a> {
     pub fn get_by_cross_axis_key(&self, key: &str) -> Result<&str, StbError> {
         let stb: &Stb = self.stb;
         let (row, col) = resolve_cross_axis_cell(stb, self.line, self.mode, key)?;
-        stb.cell(row, col).ok_or(StbError::CellOutOfBounds { row, col })
+        stb.cell(row, col)
+            .ok_or(StbError::CellOutOfBounds { row, col })
     }
 
     /// Like [`Self::get_by_cross_axis_key`], but mutable. Call [`Self::finish`] afterward.

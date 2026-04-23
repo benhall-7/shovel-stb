@@ -1,6 +1,4 @@
-use crate::{
-    LineReplaceMode, Stb, StbError, TableLine,
-};
+use crate::{LineReplaceMode, Stb, StbError, TableLine};
 
 use super::common::fixture;
 
@@ -78,7 +76,9 @@ fn replace_line_full_row_rebuilds_row_groups() {
     let mut stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
     let rg_before = stb.row_groups().to_vec();
     let nc = stb.num_cols();
-    let row: Vec<String> = (0..nc).map(|c| stb.cell(1, c).unwrap().to_string()).collect();
+    let row: Vec<String> = (0..nc)
+        .map(|c| stb.cell(1, c).unwrap().to_string())
+        .collect();
 
     stb.replace_line(TableLine::Row(1), LineReplaceMode::Full, row)
         .unwrap();
@@ -88,20 +88,14 @@ fn replace_line_full_row_rebuilds_row_groups() {
 #[test]
 fn replace_line_inner_rejects_row0_or_col0() {
     let mut stb = Stb::open(fixture("battle/characterAttributes.stb")).unwrap();
-    assert!(stb
-        .replace_line(
-            TableLine::Row(0),
-            LineReplaceMode::Inner,
-            vec![],
-        )
-        .is_err());
-    assert!(stb
-        .replace_line(
-            TableLine::Column(0),
-            LineReplaceMode::Inner,
-            vec![],
-        )
-        .is_err());
+    assert!(
+        stb.replace_line(TableLine::Row(0), LineReplaceMode::Inner, vec![],)
+            .is_err()
+    );
+    assert!(
+        stb.replace_line(TableLine::Column(0), LineReplaceMode::Inner, vec![],)
+            .is_err()
+    );
 }
 
 #[test]
@@ -124,9 +118,7 @@ fn stb_line_inner_row_get_mut_finish_matches_replace_line() {
     *line.get_mut(0).unwrap() = "patched".to_string();
     line.finish();
 
-    let inner: Vec<String> = (1..nc)
-        .map(|c| b.cell(r, c).unwrap().to_string())
-        .collect();
+    let inner: Vec<String> = (1..nc).map(|c| b.cell(r, c).unwrap().to_string()).collect();
     let mut inner = inner;
     inner[0] = "patched".to_string();
     b.replace_line(TableLine::Row(r), LineReplaceMode::Inner, inner)
@@ -159,7 +151,10 @@ fn stb_line_cross_axis_column_by_row_key() {
     let mut line = stb
         .line_mut(TableLine::Column(col), LineReplaceMode::Full)
         .unwrap();
-    assert_eq!(line.get_by_cross_axis_key(&row_key).unwrap(), expected.as_str());
+    assert_eq!(
+        line.get_by_cross_axis_key(&row_key).unwrap(),
+        expected.as_str()
+    );
     *line.get_mut_by_cross_axis_key(&row_key).unwrap() = "patched".to_string();
     line.finish();
     assert_eq!(stb.cell(row, col), Some("patched"));

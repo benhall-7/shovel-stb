@@ -6,15 +6,15 @@ pub mod stl;
 mod strings;
 
 pub use stb::error::{StbError, StbTablesValidation, TablesMismatchKind};
-pub use stb::table_line::{LineReplaceMode, TableLine};
 pub use stb::groups;
 pub use stb::hash;
 pub use stb::hash::stb_hash;
 pub use stb::stb_inner_cells::StbInnerCells;
 pub use stb::stb_line::StbLine;
+pub use stb::table_line::{LineReplaceMode, TableLine};
 pub use stl::Stl;
 
-use stb::groups::{bucket_index_for_hash, Group};
+use stb::groups::{Group, bucket_index_for_hash};
 
 /// A validated STB spreadsheet: a header row plus data rows, all rectangular.
 ///

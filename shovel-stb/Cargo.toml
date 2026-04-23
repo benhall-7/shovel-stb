@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 binrw = "0.15.1"
 csv = "1.4.0"
+lazycsv = "0.3.1"

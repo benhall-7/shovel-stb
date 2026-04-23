@@ -30,6 +30,7 @@ pub enum StbError {
         found: usize,
     },
     Csv(csv::Error),
+    CsvRead(String),
     Io(std::io::Error),
     /// [`crate::Stb::set_inner_cell`] only allows table `row >= 1` and `col >= 1`
     /// (not row `0` or column `0`).
@@ -53,9 +54,15 @@ pub enum StbError {
     /// [`crate::Stb::replace_line`] could not apply the requested slice (wrong length, invalid line for mode).
     LineReplaceInvalid(&'static str),
     /// Wrong number of cells passed to [`crate::Stb::replace_line`] or [`crate::StbLine::set_line`].
-    LineReplaceBadLen { expected: usize, found: usize },
+    LineReplaceBadLen {
+        expected: usize,
+        found: usize,
+    },
     /// Index along a row/column line is out of range for [`crate::StbLine`].
-    LineIndexOutOfBounds { len: usize, index: usize },
+    LineIndexOutOfBounds {
+        len: usize,
+        index: usize,
+    },
     /// No column whose header matches this string ([`crate::StbLine::get_by_cross_axis_key`] on a row line).
     ColumnHeaderNotFound(String),
     /// No table row whose first-column key matches this string ([`crate::StbLine::get_by_cross_axis_key`] on a column line).
@@ -76,6 +83,7 @@ impl fmt::Display for StbError {
                 "row {data_row} has {found} cells, expected {expected} (header width)"
             ),
             StbError::Csv(e) => write!(f, "{e}"),
+            StbError::CsvRead(msg) => write!(f, "{msg}"),
             StbError::Io(e) => write!(f, "{e}"),
             StbError::NotInnerCell { row, col } => write!(
                 f,
@@ -90,14 +98,12 @@ impl fmt::Display for StbError {
             ),
             StbError::InternalInvariant(msg) => write!(f, "{msg}"),
             StbError::LineReplaceInvalid(msg) => write!(f, "{msg}"),
-            StbError::LineReplaceBadLen { expected, found } => write!(
-                f,
-                "line edit expected {expected} cell(s), got {found}"
-            ),
-            StbError::LineIndexOutOfBounds { len, index } => write!(
-                f,
-                "line index {index} out of bounds (len {len})"
-            ),
+            StbError::LineReplaceBadLen { expected, found } => {
+                write!(f, "line edit expected {expected} cell(s), got {found}")
+            }
+            StbError::LineIndexOutOfBounds { len, index } => {
+                write!(f, "line index {index} out of bounds (len {len})")
+            }
             StbError::ColumnHeaderNotFound(key) => {
                 write!(f, "no column with header `{key}`")
             }
@@ -110,7 +116,10 @@ impl fmt::Display for StbError {
             ),
             StbError::TablesMismatch(kind) => match kind {
                 TablesMismatchKind::CellHashes => {
-                    write!(f, "cell_hashes do not match strings (recomputed hashes differ)")
+                    write!(
+                        f,
+                        "cell_hashes do not match strings (recomputed hashes differ)"
+                    )
                 }
                 TablesMismatchKind::RowGroups => {
                     write!(f, "row_groups do not match cell_hashes")

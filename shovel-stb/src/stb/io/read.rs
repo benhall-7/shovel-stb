@@ -18,8 +18,9 @@ fn read_groups<R: Read + Seek>(
     let group_count = count as usize;
 
     reader.seek(SeekFrom::Start(table_offset))?;
-    let RawGroupOffsetTable { offsets: group_offsets } =
-        RawGroupOffsetTable::read_le_args(reader, (group_count,))?;
+    let RawGroupOffsetTable {
+        offsets: group_offsets,
+    } = RawGroupOffsetTable::read_le_args(reader, (group_count,))?;
 
     let mut groups = Vec::with_capacity(group_count);
     for &off in &group_offsets {
@@ -39,8 +40,9 @@ impl Stb {
         let cols = header.num_cols as usize;
 
         reader.seek(SeekFrom::Start(header.cells_offset))?;
-        let RawCellHashBlock { hashes: hashes_flat } =
-            RawCellHashBlock::read_le_args(reader, (total_cells,))?;
+        let RawCellHashBlock {
+            hashes: hashes_flat,
+        } = RawCellHashBlock::read_le_args(reader, (total_cells,))?;
 
         reader.seek(SeekFrom::Start(header.string_offsets_offset))?;
         let RawStringOffsetBlock {
@@ -124,15 +126,13 @@ impl Stb {
             col_groups_file,
             crate::StbTablesValidation::default(),
         )
-        .map_err(
-            |e| {
-                let pos = reader.stream_position().unwrap_or(0);
-                binrw::Error::AssertFail {
-                    pos,
-                    message: e.to_string(),
-                }
-            },
-        )
+        .map_err(|e| {
+            let pos = reader.stream_position().unwrap_or(0);
+            binrw::Error::AssertFail {
+                pos,
+                message: e.to_string(),
+            }
+        })
     }
 
     /// Convenience: open a file by path and parse it.
